@@ -5,9 +5,8 @@
 
 /* structure used to pass arguments to workers */
 struct threads_arg {
-    int fd;
-    off_t begin_offset;
-    off_t end_offset;
+    char *buff;
+    u_int64_t size;
 };
 
 /* worker function signature */
