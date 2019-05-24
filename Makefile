@@ -1,9 +1,10 @@
 CFLAGS = -O0 -ggdb3 -Wall
-LDFLAGS = "-lpthread"
+LDFLAGS = -pthread
 
 TARGET = mapred
 
-OBJS = src/main.o
+OBJS = src/main.o \
+	src/map.o
 
 all: $(TARGET)
 
