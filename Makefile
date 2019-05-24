@@ -3,11 +3,11 @@ LDFLAGS = "-lpthread"
 
 TARGET = mapred
 
-OBJS = main.o
+OBJS = src/main.o
 
 all: $(TARGET)
 
-$(TARGET): src/$(OBJS)
+$(TARGET): $(OBJS)
 	$(CC) -o $@ $(LDFLAGS) $^
 
 %.o: %.c
