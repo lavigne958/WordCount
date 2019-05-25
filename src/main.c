@@ -48,6 +48,9 @@ if (strlen(file) <= 0) {
     }
 }
 
+/**
+ * allocate and initialize thread arguments
+ */
 static void setup_thread_arg(struct threads_arg *args, int32_t nr_threads, u_int32_t slice)
 {
     args->buff = (char *) calloc(slice, sizeof(char));
@@ -58,6 +61,13 @@ static void setup_thread_arg(struct threads_arg *args, int32_t nr_threads, u_int
     args->root->count = 0;
 }
 
+/**
+ * read the file up to the next token after the calculated slice
+ *
+ * if the slice does not ends on a token,
+ * read up to the next token
+ * this way workers buffer do not overlap on a word
+ */
 static u_int64_t read_file(int fd, struct threads_arg *arg, u_int32_t slice)
 {
     char next_tok;
@@ -86,6 +96,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    // init program args
     const char *file = argv[1];
     const int32_t nr_threads = strtol(argv[2], NULL, 10);
     struct stat fileStats;
@@ -98,8 +109,8 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    // setup threads arg and read file
     struct threads_arg **args = (struct threads_arg **) calloc(nr_threads, sizeof(struct threads_args *));
-
     int i;
     u_int32_t started_threads = 0;
     struct threads_arg *arg;
@@ -120,6 +131,7 @@ int main(int argc, char **argv)
         args[i] = arg;
     }
 
+    //wait for each started thread to finish then agregates resulst (reduce phase)
     for (i = 0; i < started_threads; ++i) {
         arg = args[i];
         if (arg->tid >= 0) {

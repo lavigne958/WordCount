@@ -26,6 +26,12 @@ static void add_inc_word(struct map *root, const char *found)
     root->next = new_word;
 }
 
+/**
+ * main thread function (map phase)
+ *
+ * tokenize the given buffer
+ * count occurences of each word found
+ */
 void *worker(void *arg)
 {
     struct threads_arg *args = (struct threads_arg *)arg;
