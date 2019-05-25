@@ -4,7 +4,8 @@ LDFLAGS = -pthread
 TARGET = mapred
 
 OBJS = src/main.o \
-	src/map.o
+	src/map.o \
+	src/reduce.o
 
 all: $(TARGET)
 

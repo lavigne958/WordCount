@@ -89,34 +89,6 @@ static u_int64_t read_file(int fd, struct threads_arg *arg, u_int32_t slice)
     return slice;
 }
 
-static void reduce_word(struct map *result, struct map *word, unsigned long i)
-{
-    struct map *result_it = NULL;
-
-    for_each_word(result_it, result) {
-        size_t longuest = (result_it->key_len > word->key_len)? result_it->key_len : word->key_len;
-
-        if (!strncmp(result_it->key, word->key, longuest)) {
-            result_it->count += word->count;
-            return;
-        }
-    }
-
-    struct map *new_entry = (struct map *)calloc(1, sizeof(struct map));
-    memcpy(new_entry, word, sizeof(struct map));
-    new_entry->next = result->next;
-    result->next = new_entry;
-}
-
-static void reduce(struct map *result, struct map *map_result, unsigned long i)
-{
-    struct map *it = NULL;
-
-    for_each_word(it, map_result) {
-        reduce_word(result, it, i);
-    }
-}
-
 int main(int argc, char **argv)
 {
     if (argc != 3) {
@@ -159,20 +131,21 @@ int main(int argc, char **argv)
     }
 
     //wait for each started thread to finish then agregates resulst (reduce phase)
-    struct map result;
-    result.count = 0;
-    result.key = NULL;
-    result.next = &result;
-
     for (i = 0; i < started_threads; ++i) {
         arg = args[i];
         pthread_join(arg->tid, NULL);
     }
 
-    for (i = 0; i < started_threads; ++i) {
-        arg = args[i];
-        reduce(&result, arg->root, arg->tid);
-    }
+    struct map result = {
+        .count = 0,
+        .key = NULL,
+        .key_len = 0,
+        .next = &result,
+        .prev = &result
+    };
+
+    reduce(&result, args, started_threads);
+
     struct map *it;
     for_each_word(it, &result) {
         printf("%s=%u\n", it->key, it->count);

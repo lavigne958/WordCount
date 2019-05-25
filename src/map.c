@@ -15,7 +15,7 @@ static void add_inc_word(struct map *root, const char *found, const size_t found
         /* compare up to the longest word,
          * otherwise a word that is a sub part of the other one migh return false positive
          */
-        size_t longuest = (found_len > it->key_len)? found_len : it->key_len;
+        size_t longuest = LONGUEST_STR(found_len, it->key_len);
         if (!strncmp(it->key, found, longuest)) {
             it->count++;
             return;
@@ -32,8 +32,7 @@ static void add_inc_word(struct map *root, const char *found, const size_t found
     struct map *new_word = (struct map *)calloc(1, sizeof(struct map));
     memcpy(new_word, &tmp, sizeof(struct map));
 
-    new_word->next = root->next;
-    root->next = new_word;
+    insert_word(root, new_word);
 }
 
 static size_t next_word(char *buff, char **result)
