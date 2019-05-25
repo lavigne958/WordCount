@@ -5,8 +5,6 @@
 
 #include "utils.h"
 
-#define TOKENS " ,.?!\n"
-
 static void add_inc_word(struct map *root, const char *found)
 {
     struct map *it = NULL;
@@ -32,7 +30,7 @@ void *worker(void *arg)
 {
     struct threads_arg *args = (struct threads_arg *)arg;
 
-    //printf("Starting worker, process '%lu'\n", args->size);
+    printf("[%lu] Starting worker, process '%lu'\n", args->tid, args->size);
 
     char *token = NULL;
     char *savePtr = NULL;
@@ -44,15 +42,7 @@ void *worker(void *arg)
         token = strtok_r(NULL, TOKENS, &savePtr);
     }
 
-    //printf("finish, pass root (0x%p) to args for main thread\n", &args->root);
-
-    pthread_mutex_lock(args->lock);
-    pthread_cond_signal(args->worker_ready);
-    pthread_mutex_unlock(args->lock);
-
-    pthread_mutex_lock(args->lock);
-    pthread_cond_wait(args->worker_finished, args->lock);
-    pthread_mutex_unlock(args->lock);
+    printf("[%lu] goodby world\n", args->tid);
 
     return NULL;
 }

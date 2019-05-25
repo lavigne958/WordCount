@@ -2,6 +2,7 @@
 #define UTILS_H
 
 #include <sys/types.h>
+#include <pthread.h>
 
 struct map {
     const char *key;
@@ -14,12 +15,11 @@ struct threads_arg {
     char *buff;
     u_int64_t size;
     struct map *root;
-    pthread_cond_t *worker_ready;
-    pthread_cond_t *worker_finished;
-    pthread_mutex_t *lock;
+    pthread_t tid;
 };
 
 #define for_each_word(it, root) for (it = (root)->next; it != (root); it = it->next)
+#define TOKENS " ,.?!\n"
 
 /* worker function signature */
 void *worker(void *);

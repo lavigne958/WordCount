@@ -11,8 +11,6 @@
 
 #include "utils.h"
 
-struct threads_arg **args = NULL;
-
 /**
  * check if the file can be map/reduced
  *
@@ -50,17 +48,35 @@ if (strlen(file) <= 0) {
     }
 }
 
-static void setup_thread_arg(struct threads_arg *args, int32_t nr_threads, u_int32_t slice, int fd)
+static void setup_thread_arg(struct threads_arg *args, int32_t nr_threads, u_int32_t slice)
 {
     args->buff = (char *) calloc(slice, sizeof(char));
-    args->worker_finished = (pthread_cond_t *)calloc(1, sizeof(pthread_cond_t));
-    args->worker_ready = (pthread_cond_t *)calloc(1, sizeof(pthread_cond_t));
-    args->lock = (pthread_mutex_t *)calloc(1, sizeof(pthread_mutex_t));
-
     args->root = (struct map *)calloc(1 ,sizeof(struct map));
+
     args->root->next = args->root;
     args->root->key = NULL;
     args->root->count = 0;
+}
+
+static u_int64_t read_file(int fd, struct threads_arg *arg, u_int32_t slice)
+{
+    char next_tok;
+    char *tmp_buff;
+
+    /* read an equal slice of the file */
+    slice = read(fd, arg->buff, slice);
+
+    /* read next token to check if the word is not finished yep */
+    while (read(fd, &next_tok, 1) > 0 && strchr(TOKENS, next_tok) == NULL) {
+        /* keep reading until the a token is found */
+        tmp_buff = (char *)calloc(slice + 1, sizeof(char));
+        strncpy(tmp_buff, arg->buff, slice);
+        free(arg->buff);
+        arg->buff = tmp_buff;
+        slice++;
+    }
+
+    return slice;
 }
 
 int main(int argc, char **argv)
@@ -82,46 +98,41 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    //printf("will process '%s' using '%d' threads, each will process '%u' bytes\n", file, nr_threads, slice);
-    args = (struct threads_arg **) calloc(nr_threads, sizeof(struct threads_args *));
-    pthread_t *threads = (pthread_t *) calloc(nr_threads, sizeof(pthread_t));
+    struct threads_arg **args = (struct threads_arg **) calloc(nr_threads, sizeof(struct threads_args *));
 
-    /* if their is some left over after spliting the file, the last thread will process it */
     int i;
-    for (i = 0; i < (nr_threads - 1); ++i) {
-        args[i] = (struct threads_arg *)calloc(1, sizeof(struct threads_arg));
-        setup_thread_arg(args[i], nr_threads, slice, fd);
-        args[i]->size = read(fd, args[i]->buff, slice);
-
-        pthread_create(&threads[i], NULL, worker, args[i]);
-    }
-
-    args[i] = (struct threads_arg *)calloc(1, sizeof(struct threads_arg));
-    setup_thread_arg(args[i], nr_threads, slice + (fileStats.st_size % nr_threads), fd);
-    args[i]->size = read(fd, args[i]->buff, slice);
-
-    pthread_create(&threads[i], NULL, worker, args[i]);
-
+    u_int32_t started_threads = 0;
     struct threads_arg *arg;
-    for (int i = 0; i < nr_threads; ++i) {
-        arg = args[i];
-        pthread_mutex_lock(arg->lock);
-        pthread_cond_wait(arg->worker_ready, arg->lock);
-        pthread_mutex_unlock(arg->lock);
+    for (i = 0; i < nr_threads; ++i) {
+        arg = (struct threads_arg *)calloc(1, sizeof(struct threads_arg));
 
-        //printf("thread [%d] is done:\n", i);
+        setup_thread_arg(arg, nr_threads, slice);
+        arg->size = read_file(fd, arg, slice);
 
-        struct map *it = NULL;
-        for_each_word(it, arg->root) {
-            printf("[%d] %s=%u\n", i, it->key, it->count);
+        if (arg->size > 0) {
+            pthread_create(&arg->tid, NULL, worker, arg);
+            started_threads++;
+        } else {
+            printf("[%d] nothing left to read\n", i);
+            arg->tid = -1;
         }
 
-        pthread_mutex_lock(arg->lock);
-        pthread_cond_signal(arg->worker_finished);
-        pthread_mutex_unlock(arg->lock);
+        args[i] = arg;
     }
 
+    for (i = 0; i < started_threads; ++i) {
+        arg = args[i];
+        if (arg->tid >= 0) {
+            struct map *it = NULL;
+            pthread_join(arg->tid, NULL);
 
+            printf("thread [%d/%d] is done:\n", (i+1), started_threads);
+
+            for_each_word(it, arg->root) {
+                printf("[%d] %s=%u\n", i, it->key, it->count);
+            }
+        }
+    }
 
     return 0;
 }
