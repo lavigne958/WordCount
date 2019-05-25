@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 
 #include "utils.h"
 
@@ -20,7 +21,7 @@
  */
 static u_int32_t init_file(const char *file, const u_int32_t nr_threads, struct stat *fileStats)
 {
-if (strlen(file) <= 0) {
+    if (strlen(file) <= 0) {
         printf("file name is empty, please provide a file name\n");
         exit(0);
     }
@@ -31,7 +32,7 @@ if (strlen(file) <= 0) {
     }
 
     if (stat(file, fileStats) != 0) {
-        perror("Error when getting '%s' stats");
+        perror("Error when getting stats");
         exit(-1);
     }
 
@@ -68,23 +69,21 @@ static void setup_thread_arg(struct threads_arg *args, int32_t nr_threads, u_int
  * read up to the next token
  * this way workers buffer do not overlap on a word
  */
-static u_int64_t read_file(int fd, struct threads_arg *arg, u_int32_t slice)
+static u_int64_t read_file(char *file_ptr, struct threads_arg *arg, u_int32_t slice)
 {
-    char next_tok;
-    char *tmp_buff;
-
+    char *next_tok = NULL;
     /* read an equal slice of the file */
-    slice = read(fd, arg->buff, slice);
+    arg->buff = file_ptr;
 
     /* read next token to check if the word is not finished yep */
-    while (read(fd, &next_tok, 1) > 0 && strchr(TOKENS, next_tok) == NULL) {
+    next_tok = arg->buff+slice+1;
+    while (next_tok && strchr(TOKENS, *next_tok) == NULL) {
         /* keep reading until the a token is found */
-        tmp_buff = (char *)calloc(slice + 2, sizeof(char));
-        snprintf(tmp_buff, slice+2, "%s%c", arg->buff, next_tok);
-        free(arg->buff);
-        arg->buff = tmp_buff;
         slice++;
+        next_tok++;
     }
+
+    arg->size = slice;
 
     return slice;
 }
@@ -109,6 +108,12 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    char *file_ptr = mmap(NULL, fileStats.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (file_ptr == MAP_FAILED) {
+        perror("Failed to map file to memeory");
+        return -1;
+    }
+
     // setup threads arg and read file
     struct threads_arg **args = (struct threads_arg **) calloc(nr_threads, sizeof(struct threads_args *));
     int i;
@@ -118,7 +123,8 @@ int main(int argc, char **argv)
         arg = (struct threads_arg *)calloc(1, sizeof(struct threads_arg));
 
         setup_thread_arg(arg, nr_threads, slice);
-        arg->size = read_file(fd, arg, slice);
+        arg->size = read_file(file_ptr, arg, slice);
+        file_ptr += arg->size;
 
         if (arg->size > 0) {
             pthread_create(&arg->tid, NULL, map, arg);
