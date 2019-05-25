@@ -41,46 +41,54 @@ static u_int32_t init_file(const char *file, const u_int32_t nr_threads, struct 
         exit(1);
     }
 
-    /* if only 1 threads it will treat the entire file */
-    if (nr_threads == 1) {
-        return fileStats->st_size;
-    } else {
-        return fileStats->st_size / nr_threads;
-    }
+    return fileStats->st_size / nr_threads;
 }
 
 /**
  * allocate and initialize thread arguments
  */
-static void setup_thread_arg(struct threads_arg *args, int32_t nr_threads, u_int32_t slice)
+static int setup_thread_arg(struct threads_arg *args, u_int32_t slice)
 {
-    args->buff = (char *) calloc(slice, sizeof(char));
     args->root = (struct map *)calloc(1 ,sizeof(struct map));
+    if (!args->root) {
+        printf("Could not allocate worker linked list\n");
+        return -1;
+    }
 
     args->root->next = args->root;
     args->root->key = NULL;
     args->root->count = 0;
+
+    return 0;
 }
 
 /**
- * read the file up to the next token after the calculated slice
+ * set the thread arg to memory addr where file reside
  *
- * if the slice does not ends on a token,
- * read up to the next token
- * this way workers buffer do not overlap on a word
+ * if the worker slice next char is a word keep reading until it is
+ * not a word anymore
+ *
+ * each worker should start and end its slice with a FULL word,
+ * as equally as possible
  */
 static u_int64_t read_file(char *file_ptr, struct threads_arg *arg, u_int32_t slice)
 {
+    if (slice == 0) {
+        return slice;
+    }
+
     char *next_tok = NULL;
     /* read an equal slice of the file */
     arg->buff = file_ptr;
 
-    /* read next token to check if the word is not finished yep */
-    next_tok = arg->buff+slice+1;
-    while (next_tok && strchr(TOKENS, *next_tok) == NULL) {
-        /* keep reading until the a token is found */
-        slice++;
-        next_tok++;
+    if (IS_LETTER(arg->buff[slice-1])) {
+        /* read next token to check if the word is not finished yep */
+        next_tok = arg->buff+slice+1;
+        while (next_tok && strchr(TOKENS, *next_tok) == NULL) {
+            /* keep reading until the a token is found */
+            slice++;
+            next_tok++;
+        }
     }
 
     arg->size = slice;
@@ -99,37 +107,69 @@ int main(int argc, char **argv)
     const char *file = argv[1];
     const int32_t nr_threads = strtol(argv[2], NULL, 10);
     struct stat fileStats;
+    int ret = 0;
 
     u_int32_t slice = init_file(file, nr_threads, &fileStats);
 
     int fd = open(file, O_RDONLY);
     if (fd <= 0) {
         perror("Failed to open the file");
-        return -1;
+        ret = -1;
+        goto exit;
     }
 
-    char *file_ptr = mmap(NULL, fileStats.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (file_ptr == MAP_FAILED) {
+    void *orig_file_prt = mmap(NULL, fileStats.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (orig_file_prt == MAP_FAILED) {
         perror("Failed to map file to memeory");
-        return -1;
+        ret = -1;
+        goto exit_file;
     }
+
+    char *file_ptr = (char *)orig_file_prt;
 
     // setup threads arg and read file
     struct threads_arg **args = (struct threads_arg **) calloc(nr_threads, sizeof(struct threads_args *));
+    if (!args) {
+        printf("Could not allocate threads argument array\n");
+        goto exit_mmap;
+    }
+
     int i;
     u_int32_t started_threads = 0;
     struct threads_arg *arg;
+    size_t length = 0;
+
     for (i = 0; i < nr_threads; ++i) {
         arg = (struct threads_arg *)calloc(1, sizeof(struct threads_arg));
+        if (!arg) {
+            printf("Could not allocate thread '%d' argument structure", i);
+            ret = -1;
+            goto exit_args;
+        }
 
-        setup_thread_arg(arg, nr_threads, slice);
+        if (setup_thread_arg(arg, slice) < 0) {
+            printf("Failed to setup thread '%d' arguments\n", i);
+            free(arg);
+            goto exit_args;
+        }
+
+        // the last thread takes the left over
+        if ((length + slice) > fileStats.st_size) {
+            slice = fileStats.st_size - length;
+        }
+
         arg->size = read_file(file_ptr, arg, slice);
         file_ptr += arg->size;
+        length += arg->size;
 
-        if (arg->size > 0) {
+        if (length <= fileStats.st_size) {
             pthread_create(&arg->tid, NULL, map, arg);
             started_threads++;
         } else {
+            free(arg->root);
+            arg->root = NULL;
+            free(arg);
+            arg = NULL;
             arg->tid = -1;
         }
 
@@ -157,5 +197,19 @@ int main(int argc, char **argv)
         printf("%s=%u\n", it->key, it->count);
     }
 
-    return 0;
+exit_args:
+    for (i = 0; i < started_threads; ++i) {
+        free(args[i]);
+    }
+
+    free(args);
+
+exit_mmap:
+    munmap(orig_file_prt, fileStats.st_size);
+
+exit_file:
+    close(fd);
+
+exit:
+    return ret;
 }

@@ -8,8 +8,8 @@
  * map that holds a word and it occurences
  */
 struct map {
-    const char *key;
-    const size_t key_len;
+    char *key;
+    size_t key_len;
     u_int32_t count;
     struct map *next;
     struct map *prev; //easier for sorting
@@ -34,7 +34,10 @@ struct threads_arg {
  * macro to iterate over the map
  */
 #define for_each_word(it, root) for (it = (root)->next; it != (root); it = it->next)
+#define for_each_word_safe(it, tmp, root) for (it = (root)->next, tmp = it->next; it != (root); it = tmp, tmp = tmp->next)
+
 #define LONGUEST_STR(str1, str2) ((str1 > str2)? str1 : str2)
+#define IS_LETTER(pos) ((65 <= (pos) && (pos) <= 90) || (97 <= (pos) && (pos) <= 122))
 
 static inline void insert_word(struct map *root, struct map *word)
 {
@@ -61,7 +64,7 @@ static inline void swap_words(struct map *w1, struct map *w2)
 /**
  * tokens that mark the limit of a word
  */
-#define TOKENS " ,.?!\n"
+#define TOKENS " ,.;?!\n"
 
 /* worker function signature */
 void *map(void *);

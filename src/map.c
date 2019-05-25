@@ -5,8 +5,6 @@
 
 #include "utils.h"
 
-#define IS_LETTER(pos) ((65 <= *(pos) && *(pos) <= 90) || (97 <= *(pos) && *(pos) <= 122))
-
 static void add_inc_word(struct map *root, const char *found, const size_t found_len)
 {
     struct map *it = NULL;
@@ -22,16 +20,16 @@ static void add_inc_word(struct map *root, const char *found, const size_t found
         }
     }
 
-    struct map tmp = {
-        .key = strdup(found),
-        .key_len = found_len,
-        .count = 1
-    };
-
     /* necessary to keep the values in the struct as 'const' */
     struct map *new_word = (struct map *)calloc(1, sizeof(struct map));
-    memcpy(new_word, &tmp, sizeof(struct map));
+    if (!new_word) {
+        printf("Could not allocate list entry for word '%s'\n", found);
+        return;
+    }
 
+    new_word->key = strdup(found);
+    new_word->key_len = found_len;
+    new_word->count = 1;
     insert_word(root, new_word);
 }
 
@@ -46,7 +44,7 @@ static size_t next_word(char *buff, char **result)
         goto exit;
     }
 
-    while (pos && *pos && !IS_LETTER(pos)) {
+    while (pos && *pos && !IS_LETTER(*pos)) {
         pos++;
         len++;
     }
@@ -58,7 +56,7 @@ static size_t next_word(char *buff, char **result)
 
     begin = pos;
 
-    while (IS_LETTER(pos)) {
+    while (IS_LETTER(*pos)) {
         len++;
         pos++;
     }
@@ -69,7 +67,19 @@ static size_t next_word(char *buff, char **result)
     }
 
     size_t result_len = pos - begin;
+
+    //clean up previous token found
+    if (*result) {
+        free(*result);
+    }
+
     *result = (char *)calloc(result_len+1, sizeof(char));
+    if (!*result) {
+        printf("Could not alloca memory for token");
+        *result = NULL;
+        goto exit;
+    }
+
     strncpy(*result, begin, result_len);
     (*result)[result_len] = '\0';
 

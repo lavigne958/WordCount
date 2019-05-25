@@ -18,7 +18,14 @@ static int reduce_word(struct map *result, struct map *word)
     }
 
     struct map *new_entry = (struct map *)calloc(1, sizeof(struct map));
-    memcpy(new_entry, word, sizeof(struct map));
+    if (!new_entry) {
+        printf("Could not alloca memory for word '%s'\n", word->key);
+        return 0;
+    }
+
+    new_entry->count = word->count;
+    new_entry->key = strdup(word->key);
+    new_entry->key_len = word->key_len;
     insert_word(result, new_entry);
 
     return 1;
@@ -40,7 +47,7 @@ static void sort_map(struct map *result)
 
         while (pos->next != last_pos && pos->next != result) {
             longuest = LONGUEST_STR(pos->key_len, pos->next->key_len);
-            if (strncmp(pos->key, pos->next->key, longuest) > 0) {
+            if (strncasecmp(pos->key, pos->next->key, longuest) > 0) {
                 // due to swapp, no need to update pos with next pointer
                 swap_words(pos, pos->next);
                 swapped = 1;
@@ -60,12 +67,19 @@ void reduce(struct map *result, struct threads_arg **args, u_int32_t nr_threads)
     for (int i = 0; i < nr_threads; ++i) {
         arg = args[i];
         struct map *it = NULL;
+        struct map *tmp;
 
-        for_each_word(it, arg->root) {
+        if (!arg)
+            continue;
+
+        for_each_word_safe(it, tmp, arg->root) {
             nr_words += reduce_word(result, it);
+            free(it->key);
+            it->next->prev = it->prev;
+            it->prev->next = it->next;
+            free(it);
         }
     }
 
-    printf("there are '%lu' words to sort\n", nr_words);
     sort_map(result);
 }
