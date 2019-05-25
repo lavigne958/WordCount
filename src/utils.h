@@ -5,10 +5,11 @@
 #include <pthread.h>
 
 /**
- * linked list that holds a word and it occurences
+ * map that holds a word and it occurences
  */
 struct map {
     const char *key;
+    const size_t key_len;
     u_int32_t count;
     struct map *next;
 };
@@ -18,7 +19,7 @@ struct map {
  *
  * buff: buffer containing the bytes to read
  * size: the size of the buffer
- * root: root node of the linked list for a single worker
+ * root: root node of the map for a single worker
  * tid: the thread id
  */
 struct threads_arg {
@@ -29,7 +30,7 @@ struct threads_arg {
 };
 
 /**
- * macro to iterate over linked list
+ * macro to iterate over the map
  */
 #define for_each_word(it, root) for (it = (root)->next; it != (root); it = it->next)
 
@@ -39,6 +40,6 @@ struct threads_arg {
 #define TOKENS " ,.?!\n"
 
 /* worker function signature */
-void *worker(void *);
+void *map(void *);
 
 #endif

@@ -79,14 +79,42 @@ static u_int64_t read_file(int fd, struct threads_arg *arg, u_int32_t slice)
     /* read next token to check if the word is not finished yep */
     while (read(fd, &next_tok, 1) > 0 && strchr(TOKENS, next_tok) == NULL) {
         /* keep reading until the a token is found */
-        tmp_buff = (char *)calloc(slice + 1, sizeof(char));
-        strncpy(tmp_buff, arg->buff, slice);
+        tmp_buff = (char *)calloc(slice + 2, sizeof(char));
+        snprintf(tmp_buff, slice+2, "%s%c", arg->buff, next_tok);
         free(arg->buff);
         arg->buff = tmp_buff;
         slice++;
     }
 
     return slice;
+}
+
+static void reduce_word(struct map *result, struct map *word, unsigned long i)
+{
+    struct map *result_it = NULL;
+
+    for_each_word(result_it, result) {
+        size_t longuest = (result_it->key_len > word->key_len)? result_it->key_len : word->key_len;
+
+        if (!strncmp(result_it->key, word->key, longuest)) {
+            result_it->count += word->count;
+            return;
+        }
+    }
+
+    struct map *new_entry = (struct map *)calloc(1, sizeof(struct map));
+    memcpy(new_entry, word, sizeof(struct map));
+    new_entry->next = result->next;
+    result->next = new_entry;
+}
+
+static void reduce(struct map *result, struct map *map_result, unsigned long i)
+{
+    struct map *it = NULL;
+
+    for_each_word(it, map_result) {
+        reduce_word(result, it, i);
+    }
 }
 
 int main(int argc, char **argv)
@@ -121,10 +149,9 @@ int main(int argc, char **argv)
         arg->size = read_file(fd, arg, slice);
 
         if (arg->size > 0) {
-            pthread_create(&arg->tid, NULL, worker, arg);
+            pthread_create(&arg->tid, NULL, map, arg);
             started_threads++;
         } else {
-            printf("[%d] nothing left to read\n", i);
             arg->tid = -1;
         }
 
@@ -132,18 +159,23 @@ int main(int argc, char **argv)
     }
 
     //wait for each started thread to finish then agregates resulst (reduce phase)
+    struct map result;
+    result.count = 0;
+    result.key = NULL;
+    result.next = &result;
+
     for (i = 0; i < started_threads; ++i) {
         arg = args[i];
-        if (arg->tid >= 0) {
-            struct map *it = NULL;
-            pthread_join(arg->tid, NULL);
+        pthread_join(arg->tid, NULL);
+    }
 
-            printf("thread [%d/%d] is done:\n", (i+1), started_threads);
-
-            for_each_word(it, arg->root) {
-                printf("[%d] %s=%u\n", i, it->key, it->count);
-            }
-        }
+    for (i = 0; i < started_threads; ++i) {
+        arg = args[i];
+        reduce(&result, arg->root, arg->tid);
+    }
+    struct map *it;
+    for_each_word(it, &result) {
+        printf("%s=%u\n", it->key, it->count);
     }
 
     return 0;
