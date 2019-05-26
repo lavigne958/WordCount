@@ -23,6 +23,7 @@ static struct node *reduce_word(struct node *result, struct node *word)
         result->left = reduce_word(result->left, word);
     } else {
         result->count += word->count;
+        free(word->key);
     }
 
     return result;
@@ -42,6 +43,8 @@ static struct node *reduce_worker(struct node *result, struct node *worker)
 
     if (worker->right)
         result = reduce_worker(result, worker->right);
+
+    free(worker);
 
     return result;
 }

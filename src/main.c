@@ -104,6 +104,9 @@ static void rec_print_result(struct node *n)
 
     if (n->right)
         rec_print_result(n->right);
+
+    free(n->key);
+    free(n);
 }
 
 static inline void print_result(struct tree *result)

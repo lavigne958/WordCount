@@ -6,16 +6,17 @@
 
 #include "utils.h"
 
-struct node *allocate_new_node(const char *word, const size_t word_len, u_int32_t count)
+struct node *allocate_new_node(char *word, const size_t word_len, u_int32_t count)
 {
     struct node *n = (struct node *)calloc(1, sizeof(struct node));
     if (unlikely(!n)) {
         printf("Could not allocaet tree node for '%s'\n", word);
+        free(word);
         return NULL;
     }
 
     n->count = count;
-    n->key = strdup(word);
+    n->key = word;
     n->key_len = word_len;
     n->left = NULL;
     n->right = NULL;
@@ -23,7 +24,7 @@ struct node *allocate_new_node(const char *word, const size_t word_len, u_int32_
     return n;
 }
 
-static struct node *add_inc_word(struct node *node, const char *found, const size_t found_len)
+static struct node *add_inc_word(struct node *node, char *found, const size_t found_len)
 {
     if (!node) {
         return allocate_new_node(found, found_len, 1);
@@ -41,6 +42,7 @@ static struct node *add_inc_word(struct node *node, const char *found, const siz
 
     } else {
         node->count++;
+        free(found);
     }
 
     return node;
@@ -66,11 +68,6 @@ static size_t next_word(char *buff, char **result)
     char *pos = buff;
     char *begin;
     size_t len = 0;
-
-    //clean up previous token found
-    if (*result) {
-        free(*result);
-    }
 
     if (!buff || !*buff) {
         *result = NULL;
@@ -142,8 +139,6 @@ void *map(void *arg)
     if (token) {
         add_inc_word(args->tree->root, token, strlen(token));
         args->tree->nr_nodes++;
-        pos += offset;
-        free(token);
     }
 
     return NULL;
