@@ -18,7 +18,7 @@ static int reduce_word(struct map *result, struct map *word)
     }
 
     struct map *new_entry = (struct map *)calloc(1, sizeof(struct map));
-    if (!new_entry) {
+    if (unlikely(!new_entry)) {
         printf("Could not alloca memory for word '%s'\n", word->key);
         return 0;
     }
@@ -69,7 +69,7 @@ void reduce(struct map *result, struct threads_arg **args, u_int32_t nr_threads)
         struct map *it = NULL;
         struct map *tmp;
 
-        if (!arg)
+        if (unlikely(!arg))
             continue;
 
         for_each_word_safe(it, tmp, arg->root) {

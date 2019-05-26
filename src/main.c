@@ -21,22 +21,22 @@
  */
 static u_int32_t init_file(const char *file, const u_int32_t nr_threads, struct stat *fileStats)
 {
-    if (strlen(file) <= 0) {
+    if (unlikely(strlen(file) <= 0)) {
         printf("file name is empty, please provide a file name\n");
         exit(0);
     }
 
-    if (nr_threads <= 0) {
+    if (unlikely(nr_threads <= 0)) {
         printf("number of threads must be a positive integer\n");
         exit(0);
     }
 
-    if (stat(file, fileStats) != 0) {
+    if (unlikely(stat(file, fileStats) != 0)) {
         perror("Error when getting stats");
         exit(-1);
     }
 
-    if ((fileStats->st_mode & S_IFMT) != S_IFREG) {
+    if (unlikely((fileStats->st_mode & S_IFMT) != S_IFREG)) {
         printf("Can only work on regular files\n");
         exit(1);
     }
@@ -50,7 +50,7 @@ static u_int32_t init_file(const char *file, const u_int32_t nr_threads, struct 
 static int setup_thread_arg(struct threads_arg *args, u_int32_t slice)
 {
     args->root = (struct map *)calloc(1 ,sizeof(struct map));
-    if (!args->root) {
+    if (unlikely(!args->root)) {
         printf("Could not allocate worker linked list\n");
         return -1;
     }
@@ -73,7 +73,7 @@ static int setup_thread_arg(struct threads_arg *args, u_int32_t slice)
  */
 static u_int32_t read_file(char *file_ptr, struct threads_arg *arg, u_int32_t slice)
 {
-    if (slice == 0) {
+    if (unlikely(slice == 0)) {
         return slice;
     }
 
@@ -112,14 +112,14 @@ int main(int argc, char **argv)
     u_int32_t slice = init_file(file, nr_threads, &fileStats);
 
     int fd = open(file, O_RDONLY);
-    if (fd <= 0) {
+    if (unlikely(fd <= 0)) {
         perror("Failed to open the file");
         ret = -1;
         goto exit;
     }
 
     void *orig_file_prt = mmap(NULL, fileStats.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (orig_file_prt == MAP_FAILED) {
+    if (unlikely(orig_file_prt == MAP_FAILED)) {
         perror("Failed to map file to memeory");
         ret = -1;
         goto exit_file;
@@ -129,7 +129,7 @@ int main(int argc, char **argv)
 
     // setup threads arg and read file
     struct threads_arg **args = (struct threads_arg **) calloc(nr_threads, sizeof(struct threads_args *));
-    if (!args) {
+    if (unlikely(!args)) {
         printf("Could not allocate threads argument array\n");
         goto exit_mmap;
     }
@@ -141,13 +141,13 @@ int main(int argc, char **argv)
 
     for (i = 0; i < nr_threads; ++i) {
         arg = (struct threads_arg *)calloc(1, sizeof(struct threads_arg));
-        if (!arg) {
+        if (unlikely(!arg)) {
             printf("Could not allocate thread '%d' argument structure", i);
             ret = -1;
             goto exit_args;
         }
 
-        if (setup_thread_arg(arg, slice) < 0) {
+        if (unlikely(setup_thread_arg(arg, slice) < 0)) {
             printf("Failed to setup thread '%d' arguments\n", i);
             free(arg);
             goto exit_args;
@@ -193,12 +193,18 @@ int main(int argc, char **argv)
     reduce(&result, args, started_threads);
 
     struct map *it;
-    for_each_word(it, &result) {
+    struct map *tmp;
+    for_each_word_safe(it, tmp, &result) {
         printf("%s=%u\n", it->key, it->count);
+        free(it->key);
+        it->next->prev = it->prev;
+        it->prev->next = it->next;
+        free(it);
     }
 
 exit_args:
     for (i = 0; i < started_threads; ++i) {
+        free(args[i]->root);
         free(args[i]);
     }
 

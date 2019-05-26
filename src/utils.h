@@ -39,6 +39,12 @@ struct threads_arg {
 #define LONGUEST_STR(str1, str2) ((str1 > str2)? str1 : str2)
 #define IS_LETTER(pos) ((65 <= (pos) && (pos) <= 90) || (97 <= (pos) && (pos) <= 122) || (pos) == 45)
 
+#ifdef __GNUC__
+#define unlikely(x) __builtin_expect((x), 0)
+#else
+#define unlikely(x) (x)
+#endif
+
 static inline void insert_word(struct map *root, struct map *word)
 {
     word->next = root->next;
@@ -71,5 +77,8 @@ void *map(void *);
 
 /* reduce function signature */
 void reduce(struct map * result, struct threads_arg **args, u_int32_t nr_threads);
+
+/* sort linked list of words */
+//void sort_map(struct map *result);
 
 #endif

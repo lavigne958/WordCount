@@ -22,7 +22,7 @@ static void add_inc_word(struct map *root, const char *found, const size_t found
 
     /* necessary to keep the values in the struct as 'const' */
     struct map *new_word = (struct map *)calloc(1, sizeof(struct map));
-    if (!new_word) {
+    if (unlikely(!new_word)) {
         printf("Could not allocate list entry for word '%s'\n", found);
         return;
     }
@@ -33,11 +33,17 @@ static void add_inc_word(struct map *root, const char *found, const size_t found
     insert_word(root, new_word);
 }
 
-static size_t next_word(char *buff, char **result)
+static size_t next_word(char *buff, char **result, int *nr_tokens)
 {
     char *pos = buff;
     char *begin;
     size_t len = 0;
+
+    //clean up previous token found
+    if (*result) {
+        free(*result);
+        (*nr_tokens)--;
+    }
 
     if (!buff || !*buff) {
         *result = NULL;
@@ -68,17 +74,13 @@ static size_t next_word(char *buff, char **result)
 
     size_t result_len = pos - begin;
 
-    //clean up previous token found
-    if (*result) {
-        free(*result);
-    }
-
     *result = (char *)calloc(result_len+1, sizeof(char));
-    if (!*result) {
+    if (unlikely(!*result)) {
         printf("Could not alloca memory for token");
         *result = NULL;
         goto exit;
     }
+    (*nr_tokens)++;
 
     strncpy(*result, begin, result_len);
     (*result)[result_len] = '\0';
@@ -100,22 +102,30 @@ void *map(void *arg)
     char *token = NULL;
     char *pos = args->buff;
     size_t offset;
+    int nr_tokens = 0;
 
     //printf("[%lu] |%lu| '%c|%c|%c'=>'%c|%c|%c'\n", args->tid, args->size, pos[0], pos[1], pos[2], pos[args->size-3], pos[args->size-2], pos[args->size-1]);
 
-    offset = next_word(pos, &token);
+    offset = next_word(pos, &token, &nr_tokens);
 
     while (token && (pos + offset) < (args->buff + args->size) ) {
         //printf("[%lu] found '%s'\n", args->tid, token);
         add_inc_word(args->root, token, strlen(token));
         pos += offset;
-        offset = next_word(pos, &token);
+        offset = next_word(pos, &token, &nr_tokens);
     }
 
     if (token) {
         add_inc_word(args->root, token, strlen(token));
         pos += offset;
+        free(token);
+        nr_tokens--;
     }
+
+
+    printf("tokens '%d'\n", nr_tokens);
+    // odly enought, it is faster to sort the list once at the end, than sorting each small list in parallel
+    //sort_map(args->root);
 
     return NULL;
 }
