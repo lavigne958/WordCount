@@ -180,15 +180,14 @@ int main(int argc, char **argv)
         file_ptr += arg->size;
         length += arg->size;
 
-        if (length <= fileStats.st_size) {
+        if (arg->size && length <= fileStats.st_size) {
             pthread_create(&arg->tid, NULL, map, arg);
             started_threads++;
         } else {
             free(arg->tree);
             arg->tree = NULL;
             free(arg);
-            arg = NULL;
-            arg->tid = -1;
+            arg = NULL;;
         }
 
         args[i] = arg;
@@ -206,6 +205,11 @@ int main(int argc, char **argv)
     };
 
     reduce(&result, args, started_threads);
+    if (!result.root || result.nr_nodes) {
+	printf("reduce phase did not find any words, stop here\n");
+	return 0;
+    }
+
     print_result(&result);
 
 exit_args:

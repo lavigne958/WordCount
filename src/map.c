@@ -137,7 +137,7 @@ void *map(void *arg)
     }
 
     if (token) {
-        add_inc_word(args->tree->root, token, strlen(token));
+        args->tree->root = add_inc_word(args->tree->root, token, strlen(token));
         args->tree->nr_nodes++;
     }
 

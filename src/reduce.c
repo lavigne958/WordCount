@@ -55,6 +55,8 @@ void reduce(struct tree *result, struct threads_arg **args, u_int32_t nr_threads
 
     for (int i = 0; i < nr_threads; ++i) {
         arg = args[i];
-        result->root = reduce_worker(result->root, arg->tree->root);
+
+	if (arg->tree->nr_nodes)
+	    result->root = reduce_worker(result->root, arg->tree->root);
     }
 }
