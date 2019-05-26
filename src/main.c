@@ -71,7 +71,7 @@ static int setup_thread_arg(struct threads_arg *args, u_int32_t slice)
  * each worker should start and end its slice with a FULL word,
  * as equally as possible
  */
-static u_int64_t read_file(char *file_ptr, struct threads_arg *arg, u_int32_t slice)
+static u_int32_t read_file(char *file_ptr, struct threads_arg *arg, u_int32_t slice)
 {
     if (slice == 0) {
         return slice;
@@ -83,7 +83,7 @@ static u_int64_t read_file(char *file_ptr, struct threads_arg *arg, u_int32_t sl
 
     if (IS_LETTER(arg->buff[slice-1])) {
         /* read next token to check if the word is not finished yep */
-        next_tok = arg->buff+slice+1;
+        next_tok = arg->buff+slice;
         while (next_tok && strchr(TOKENS, *next_tok) == NULL) {
             /* keep reading until the a token is found */
             slice++;

@@ -37,7 +37,7 @@ struct threads_arg {
 #define for_each_word_safe(it, tmp, root) for (it = (root)->next, tmp = it->next; it != (root); it = tmp, tmp = tmp->next)
 
 #define LONGUEST_STR(str1, str2) ((str1 > str2)? str1 : str2)
-#define IS_LETTER(pos) ((65 <= (pos) && (pos) <= 90) || (97 <= (pos) && (pos) <= 122))
+#define IS_LETTER(pos) ((65 <= (pos) && (pos) <= 90) || (97 <= (pos) && (pos) <= 122) || (pos) == 45)
 
 static inline void insert_word(struct map *root, struct map *word)
 {
@@ -64,7 +64,7 @@ static inline void swap_words(struct map *w1, struct map *w2)
 /**
  * tokens that mark the limit of a word
  */
-#define TOKENS " ,.;?!\n"
+#define TOKENS " ,.:;!?\n\t"
 
 /* worker function signature */
 void *map(void *);
