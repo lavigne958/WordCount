@@ -4,82 +4,54 @@
 
 #include "utils.h"
 
-static int reduce_word(struct map *result, struct map *word)
+static struct node *reduce_word(struct node *result, struct node *word)
 {
-    struct map *result_it = NULL;
-
-    for_each_word(result_it, result) {
-        size_t longuest = LONGUEST_STR(result_it->key_len, word->key_len);
-
-        if (!strncmp(result_it->key, word->key, longuest)) {
-            result_it->count += word->count;
-            return 0;
-        }
+    if (unlikely(!word)) {
+        printf("Can not reduce empty node");
     }
 
-    struct map *new_entry = (struct map *)calloc(1, sizeof(struct map));
-    if (unlikely(!new_entry)) {
-        printf("Could not alloca memory for word '%s'\n", word->key);
-        return 0;
+    if (!result) {
+        return allocate_new_node(word->key, word->key_len, word->count);
     }
 
-    new_entry->count = word->count;
-    new_entry->key = strdup(word->key);
-    new_entry->key_len = word->key_len;
-    insert_word(result, new_entry);
+    size_t longuest = LONGUEST_STR(word->key_len, result->key_len);
+    int cmp = strncmp(word->key, result->key, longuest);
 
-    return 1;
+    if (cmp > 0){
+        result->right = reduce_word(result->right, word);
+    } else if (cmp < 0) {
+        result->left = reduce_word(result->left, word);
+    } else {
+        result->count += word->count;
+    }
+
+    return result;
 }
 
-static void sort_map(struct map *result)
+static struct node *reduce_worker(struct node *result, struct node *worker)
 {
-    int swapped;
-    struct map *pos = NULL;
-    struct map *last_pos = NULL;
+    if (unlikely(!worker)) {
+        printf("Can not reduce empty result\n");
+        return NULL;
+    }
 
-    if (result->next == result)
-        return;
+    result = reduce_word(result, worker);
 
-    size_t longuest;
-    do {
-        swapped = 0;
-        pos = result->next;
+    if (worker->left)
+        result = reduce_worker(result, worker->left);
 
-        while (pos->next != last_pos && pos->next != result) {
-            longuest = LONGUEST_STR(pos->key_len, pos->next->key_len);
-            if (strncasecmp(pos->key, pos->next->key, longuest) > 0) {
-                // due to swapp, no need to update pos with next pointer
-                swap_words(pos, pos->next);
-                swapped = 1;
-            } else {
-                pos = pos->next;
-            }
-        }
-        last_pos = pos;
-    } while (swapped);
+    if (worker->right)
+        result = reduce_worker(result, worker->right);
+
+    return result;
 }
 
-void reduce(struct map *result, struct threads_arg **args, u_int32_t nr_threads)
+void reduce(struct tree *result, struct threads_arg **args, u_int32_t nr_threads)
 {
     struct threads_arg *arg;
-    u_int64_t nr_words = 0;
 
     for (int i = 0; i < nr_threads; ++i) {
         arg = args[i];
-        struct map *it = NULL;
-        struct map *tmp;
-
-        if (unlikely(!arg))
-            continue;
-
-        for_each_word_safe(it, tmp, arg->root) {
-            nr_words += reduce_word(result, it);
-            free(it->key);
-            it->next->prev = it->prev;
-            it->prev->next = it->next;
-            free(it);
-        }
+        result->root = reduce_worker(result->root, arg->tree->root);
     }
-
-    sort_map(result);
 }

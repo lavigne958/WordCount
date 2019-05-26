@@ -2,38 +2,66 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "utils.h"
 
-static void add_inc_word(struct map *root, const char *found, const size_t found_len)
+struct node *allocate_new_node(const char *word, const size_t word_len, u_int32_t count)
 {
-    struct map *it = NULL;
-
-    for_each_word(it, root) {
-        /* compare up to the longest word,
-         * otherwise a word that is a sub part of the other one migh return false positive
-         */
-        size_t longuest = LONGUEST_STR(found_len, it->key_len);
-        if (!strncmp(it->key, found, longuest)) {
-            it->count++;
-            return;
-        }
+    struct node *n = (struct node *)calloc(1, sizeof(struct node));
+    if (unlikely(!n)) {
+        printf("Could not allocaet tree node for '%s'\n", word);
+        return NULL;
     }
 
-    /* necessary to keep the values in the struct as 'const' */
-    struct map *new_word = (struct map *)calloc(1, sizeof(struct map));
-    if (unlikely(!new_word)) {
-        printf("Could not allocate list entry for word '%s'\n", found);
-        return;
-    }
+    n->count = count;
+    n->key = strdup(word);
+    n->key_len = word_len;
+    n->left = NULL;
+    n->right = NULL;
 
-    new_word->key = strdup(found);
-    new_word->key_len = found_len;
-    new_word->count = 1;
-    insert_word(root, new_word);
+    return n;
 }
 
-static size_t next_word(char *buff, char **result, int *nr_tokens)
+static struct node *add_inc_word(struct node *node, const char *found, const size_t found_len)
+{
+    if (!node) {
+        return allocate_new_node(found, found_len, 1);
+    }
+
+    size_t longuest = LONGUEST_STR(node->key_len, found_len);
+    int cmp = strncmp(found, node->key, longuest);
+
+    // insert in right side of the tree
+    if (cmp > 0) {
+        node->right = add_inc_word(node->right, found, found_len);
+
+    } else if (cmp < 0) {
+        node->left = add_inc_word(node->left, found, found_len);
+
+    } else {
+        node->count++;
+    }
+
+    return node;
+}
+
+/**
+ * copy the (potential) implementation
+ * of strcpy from man pages
+ * to introduce => tolower() call to lower string
+ */
+static inline void strncopy_and_lower(char *dest, char *src, size_t len)
+{
+    size_t i;
+
+    for (i = 0; i < len && src[i] != '\0'; i++)
+        dest[i] = tolower(src[i]);
+    for ( ; i < len; i++)
+        dest[i] = '\0';
+}
+
+static size_t next_word(char *buff, char **result)
 {
     char *pos = buff;
     char *begin;
@@ -42,7 +70,6 @@ static size_t next_word(char *buff, char **result, int *nr_tokens)
     //clean up previous token found
     if (*result) {
         free(*result);
-        (*nr_tokens)--;
     }
 
     if (!buff || !*buff) {
@@ -80,9 +107,8 @@ static size_t next_word(char *buff, char **result, int *nr_tokens)
         *result = NULL;
         goto exit;
     }
-    (*nr_tokens)++;
 
-    strncpy(*result, begin, result_len);
+    strncopy_and_lower(*result, begin, result_len);
     (*result)[result_len] = '\0';
 
 exit:
@@ -102,28 +128,23 @@ void *map(void *arg)
     char *token = NULL;
     char *pos = args->buff;
     size_t offset;
-    int nr_tokens = 0;
 
-    //printf("[%lu] |%lu| '%c|%c|%c'=>'%c|%c|%c'\n", args->tid, args->size, pos[0], pos[1], pos[2], pos[args->size-3], pos[args->size-2], pos[args->size-1]);
-
-    offset = next_word(pos, &token, &nr_tokens);
+    offset = next_word(pos, &token);
 
     while (token && (pos + offset) < (args->buff + args->size) ) {
         //printf("[%lu] found '%s'\n", args->tid, token);
-        add_inc_word(args->root, token, strlen(token));
+        args->tree->root = add_inc_word(args->tree->root, token, strlen(token));
+        args->tree->nr_nodes++;
         pos += offset;
-        offset = next_word(pos, &token, &nr_tokens);
+        offset = next_word(pos, &token);
     }
 
     if (token) {
-        add_inc_word(args->root, token, strlen(token));
+        add_inc_word(args->tree->root, token, strlen(token));
+        args->tree->nr_nodes++;
         pos += offset;
         free(token);
-        nr_tokens--;
     }
-
-    // odly enought, it is faster to sort the list once at the end, than sorting each small list in parallel
-    //sort_map(args->root);
 
     return NULL;
 }

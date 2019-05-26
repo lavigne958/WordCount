@@ -49,15 +49,14 @@ static u_int32_t init_file(const char *file, const u_int32_t nr_threads, struct 
  */
 static int setup_thread_arg(struct threads_arg *args, u_int32_t slice)
 {
-    args->root = (struct map *)calloc(1 ,sizeof(struct map));
-    if (unlikely(!args->root)) {
+    args->tree = (struct tree *)calloc(1 ,sizeof(struct tree));
+    if (unlikely(!args->tree)) {
         printf("Could not allocate worker linked list\n");
         return -1;
     }
 
-    args->root->next = args->root;
-    args->root->key = NULL;
-    args->root->count = 0;
+    args->tree->root = NULL;
+    args->tree->nr_nodes = 0;
 
     return 0;
 }
@@ -94,6 +93,22 @@ static u_int32_t read_file(char *file_ptr, struct threads_arg *arg, u_int32_t sl
     arg->size = slice;
 
     return slice;
+}
+
+static void rec_print_result(struct node *n)
+{
+    if (n->left)
+        rec_print_result(n->left);
+
+    printf("%s=%u\n", n->key, n->count);
+
+    if (n->right)
+        rec_print_result(n->right);
+}
+
+static inline void print_result(struct tree *result)
+{
+    rec_print_result(result->root);
 }
 
 int main(int argc, char **argv)
@@ -166,8 +181,8 @@ int main(int argc, char **argv)
             pthread_create(&arg->tid, NULL, map, arg);
             started_threads++;
         } else {
-            free(arg->root);
-            arg->root = NULL;
+            free(arg->tree);
+            arg->tree = NULL;
             free(arg);
             arg = NULL;
             arg->tid = -1;
@@ -182,29 +197,17 @@ int main(int argc, char **argv)
         pthread_join(arg->tid, NULL);
     }
 
-    struct map result = {
-        .count = 0,
-        .key = NULL,
-        .key_len = 0,
-        .next = &result,
-        .prev = &result
+    struct tree result = {
+        .nr_nodes = 0,
+        .root = NULL,
     };
 
     reduce(&result, args, started_threads);
-
-    struct map *it;
-    struct map *tmp;
-    for_each_word_safe(it, tmp, &result) {
-        printf("%s=%u\n", it->key, it->count);
-        free(it->key);
-        it->next->prev = it->prev;
-        it->prev->next = it->next;
-        free(it);
-    }
+    print_result(&result);
 
 exit_args:
     for (i = 0; i < started_threads; ++i) {
-        free(args[i]->root);
+        free(args[i]->tree);
         free(args[i]);
     }
 

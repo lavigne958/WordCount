@@ -5,14 +5,19 @@
 #include <pthread.h>
 
 /**
- * map that holds a word and it occurences
+ * node that holds a word and it occurences
  */
-struct map {
+struct node {
     char *key;
     size_t key_len;
     u_int32_t count;
-    struct map *next;
-    struct map *prev; //easier for sorting
+    struct node *left;
+    struct node *right;
+};
+
+struct tree {
+    u_int32_t nr_nodes;
+    struct node *root;
 };
 
 /**
@@ -20,21 +25,21 @@ struct map {
  *
  * buff: buffer containing the bytes to read
  * size: the size of the buffer
- * root: root node of the map for a single worker
+ * tree: pointer to the tree that holds the words
  * tid: the thread id
  */
 struct threads_arg {
     char *buff;
     u_int64_t size;
-    struct map *root;
+    struct tree *tree;
     pthread_t tid;
 };
 
 /**
  * macro to iterate over the map
- */
 #define for_each_word(it, root) for (it = (root)->next; it != (root); it = it->next)
 #define for_each_word_safe(it, tmp, root) for (it = (root)->next, tmp = it->next; it != (root); it = tmp, tmp = tmp->next)
+ */
 
 #define LONGUEST_STR(str1, str2) ((str1 > str2)? str1 : str2)
 #define IS_LETTER(pos) ((65 <= (pos) && (pos) <= 90) || (97 <= (pos) && (pos) <= 122) || (pos) == 45)
@@ -45,7 +50,8 @@ struct threads_arg {
 #define unlikely(x) (x)
 #endif
 
-static inline void insert_word(struct map *root, struct map *word)
+/*
+static inline void insert_word(struct node *root, struct node *word)
 {
     word->next = root->next;
     word->next->prev = word;
@@ -53,9 +59,9 @@ static inline void insert_word(struct map *root, struct map *word)
     word->prev = root;
 }
 
-static inline void swap_words(struct map *w1, struct map *w2)
+static inline void swap_words(struct node *w1, struct node *w2)
 {
-    struct map *tmp = w1->next;
+    struct node *tmp = w1->next;
     w1->next = w2->next;
     w2->next->prev = w1;
     w2->next = tmp;
@@ -66,6 +72,7 @@ static inline void swap_words(struct map *w1, struct map *w2)
     w2->prev = tmp;
     tmp->next = w2;
 }
+*/
 
 /**
  * tokens that mark the limit of a word
@@ -76,9 +83,11 @@ static inline void swap_words(struct map *w1, struct map *w2)
 void *map(void *);
 
 /* reduce function signature */
-void reduce(struct map * result, struct threads_arg **args, u_int32_t nr_threads);
+void reduce(struct tree *result, struct threads_arg **args, u_int32_t nr_threads);
+
+struct node *allocate_new_node(const char *word, const size_t word_len, u_int32_t count);
 
 /* sort linked list of words */
-//void sort_map(struct map *result);
+//void sort_map(struct node *result);
 
 #endif
