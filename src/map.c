@@ -122,8 +122,6 @@ void *map(void *arg)
         nr_tokens--;
     }
 
-
-    printf("tokens '%d'\n", nr_tokens);
     // odly enought, it is faster to sort the list once at the end, than sorting each small list in parallel
     //sort_map(args->root);
 
