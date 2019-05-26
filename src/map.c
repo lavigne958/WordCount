@@ -106,6 +106,7 @@ void *map(void *arg)
     offset = next_word(pos, &token);
 
     while (token && (pos + offset) < (args->buff + args->size) ) {
+        //printf("[%lu] found '%s'\n", args->tid, token);
         add_inc_word(args->root, token, strlen(token));
         pos += offset;
         offset = next_word(pos, &token);
