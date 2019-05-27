@@ -1,4 +1,4 @@
-CFLAGS = -O0 -ggdb3 -Wall -Werror
+CFLAGS = -O2 -Wall -Werror -fstack-protector-strong
 LDFLAGS = -pthread
 
 TARGET = mapred
